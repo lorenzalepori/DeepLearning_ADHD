@@ -5,7 +5,7 @@ from scipy.signal import welch
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_PATH = BASE_DIR / "Data" / "unprocessed" / "adhdata.csv"
-electrodes_names= ['Fp1','Fp2','F3','F4','C3','C4','P3','P4','O1','O2',
+channels = ['Fp1','Fp2','F3','F4','C3','C4','P3','P4','O1','O2',
                 'F7','F8','T7','T8','P7','P8','Fz','Cz','Pz']
 
 SF = 128  # Sampling frequency
@@ -22,7 +22,7 @@ adhd_labels = []
 subject_ids = []
 
 for subject_id, group in subjects:
-    signal = group[electrodes_names].values.T  # Transpose to get shape
+    signal = group[channels].values.T  # Transpose to get shape
     label = group['is_ADHD'].iloc[0]  # Get the label for the subject
     channel_powers = []
 
