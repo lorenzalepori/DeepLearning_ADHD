@@ -5,3 +5,4 @@ Data/**
 adhdata.csv
 adhddata.csv
 *.npy
+.vscode/
