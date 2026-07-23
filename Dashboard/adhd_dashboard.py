@@ -26,5 +26,28 @@ try:
     data_loaded = True
 except FileNotFoundError as e:
     data_loaded = False
+    missing_file = str(e)
+
 
 st.title("ADHD Diagnosis using Siamese Network")
+if not data_loaded:
+    st.error(
+        f"File not found: {missing_file}\n\n"
+        "Please ensure that the required data files are present and in the correct directory."
+    )
+    st.stop()
+
+st.divider()
+
+n_subjects = len(labels)
+n_adhd = int((labels == 1).sum())
+n_control = int((labels == 0).sum())
+
+c1, c2, c3 = st.columns(3)
+c1.metric("total patients", n_subjects)
+c2.metric("ADHD", n_adhd)
+c3.metric("Control", n_control)
+
+st.divider()
+
+tab_maps, tab_spectralpower = st.tabs(["Brain Maps", "Spectral Power"])
