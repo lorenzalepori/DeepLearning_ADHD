@@ -4,7 +4,8 @@ Repeat of the experiment:
 Latifi, B., Amini, A., Motie Nasrabadi, A. (2024). *Siamese based deep neural 
 network for ADHD detection using EEG signal*. Computers in Biology and Medicine, 
 182, 109092. https://doi.org/10.1016/j.compbiomed.2024.109092
-with novel addition of a transformer
+with novel addition of a transformer.
+An interactive Dashboard for the whole project is available at https://deeplearning-adhd.streamlit.app/.
 
 ## Dataset
 The dataset used for this experiment is publicly available on 
