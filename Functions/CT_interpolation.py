@@ -6,7 +6,7 @@ from AEP import channels, get_aep_coords
 
 BASE_DIR = Path(__file__).resolve().parent
 PROCESSED_DIR = BASE_DIR / "Data" / "processed"
- 
+
 GRID_SIZE = 16
 MARGIN = 0.1
 NORMALIZATION_FACTOR = 1e5
