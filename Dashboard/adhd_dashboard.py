@@ -16,8 +16,10 @@ with st.sidebar:
     st.markdown("[What is ADHD?](#what-is-adhd)")
     st.markdown("[EEG-based diagnosis proposal](#eeg-diagnosis-proposal-overview)")
     st.markdown("[Data](#data)")
+    st.markdown("[Data processing](#data-processing)")
+    st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;[ AEP projection](#aep-projection)", unsafe_allow_html=True)
+    st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;[ Clough-Tocher interpolation](#clough-tocher-interpolation)", unsafe_allow_html=True)
     st.markdown("[Bibliography](#bibliography)")
-
 st.markdown("""
 <style>
 [data-testid="stTab"] p {
@@ -118,6 +120,75 @@ c1, c2, c3 = st.columns(3)
 c1.metric("Total Subjects", n_subjects)
 c2.metric("ADHD", n_adhd)
 c3.metric("Control", n_control)
+
+st.divider()
+
+st.markdown("### Collection")
+st.markdown("""The data were collected using a 19-channel EEG system, with electrodes placed according to the international 10-20 system.r eyes closed.""")
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    st.image(BASE_DIR / "extra_images" / "electrodes.png", caption="Electrode placement according to the 10-20 system, plotted using plotly.graph_objects.",width=500)
+st.divider()
+
+st.markdown("### Raw EEG signal")
+st.markdown(
+    "Before any processing, this is what the EEG actually looks like: raw "
+    "voltage over time, one line per electrode (19 in total), stacked "
+    "vertically with an offset so the traces don't overlap."
+)
+
+st.image(BASE_DIR / "extra_images" / "normalized_electrodes.png", caption="Raw EEG signal (19 electrodes, 1-40 Hz) for a single subject.")
+
+st.divider()
+
+st.markdown("## Data Processing")
+st.markdown("### Power Spectral Density (PSD)")
+st.markdown(r"""
+Before any spatial mapping can happen, the raw EEG time-series for each electrode
+must be converted into a measure of **how much energy is present at each frequency**.
+This is the Power Spectral Density (PSD), and it's the very first processing step,
+applied independently to each electrode.
+
+**1. The raw signal.** For a given electrode, the recording is simply a sequence of
+$N$ voltage samples over time:
+""")
+st.latex(r"x[0], x[1], \dots, x[N-1]")
+st.markdown(r"""
+**2. Discrete Fourier Transform (DFT).** Any such signal can be decomposed into a sum
+of pure sine/cosine waves at different frequencies. The DFT (computed efficiently via
+the FFT algorithm) extracts, for each candidate frequency $k$, a complex number that
+tells us how strongly that frequency is present in the signal:
+""")
+st.latex(r"X[k] = \sum_{n=0}^{N-1} x[n] \cdot e^{-i 2\pi k n / N}")
+st.markdown(r"""
+**3. From complex number to power.** $X[k]$ has both a magnitude and a phase. Since we
+only care about *how much* energy is present — not the phase of the oscillation — we
+take the squared magnitude:
+""")
+st.latex(r"P[k] = |X[k]|^2 = \text{Re}(X[k])^2 + \text{Im}(X[k])^2")
+st.markdown(r"""
+**4. One value per Hz.** Repeating this for every electrode and for frequencies from
+1 to 40 Hz produces the `power_tensor` array you can explore below: a
+**19 (electrodes) × 40 (Hz)** matrix per subject. This is the raw material that AEP and
+Clough-Tocher will later turn into 2D brain maps — the frequency axis becomes the 40
+image channels, and each electrode's power value becomes one scattered point to be
+projected and interpolated.
+""")
+
+st.divider()
+
+st.markdown("### AEP projection")
+st.markdown("""In order to build the brain maps, first we had to turn 3D coordinates of the electrodes into 2D coordinates.
+    The technique we used is called Azimuthal Equidistant Projection and it's used in carthography.<br>
+        It works as follows:<br>
+        - Takes the 3D coordinates and normalizes it over the surface of a unitary sphere <br>
+        - Spplies the projection formula to convert the spherical coordinates into planar ones, centering the projection on the vertex.<br>
+        The end result od AEP is:""", unsafe_allow_html=True)
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+     st.image(BASE_DIR / "extra_images" / "AEP.png")
+
+st.markdown("### Clough-Tocher interpolation")
 
 st.markdown("### Explore a subject")
 
@@ -240,8 +311,8 @@ with tab_spectralpower:
     freqs = np.arange(1, 41)
 
     view_mode = st.radio(
-        "View",
-        options=["Average across electrodes", "Per-electrode heatmap", "Per-electrode lines"],
+        "Spectral Power is a measure of how much energy is in each signal frequency. Choose how to visualize it:",
+        options=["Average across electrodes", "Per-electrode lines"],
         horizontal=True,
     )
 
@@ -252,20 +323,10 @@ with tab_spectralpower:
         fig = px.line(x=freqs, y=avg_power, labels={"x": "Frequency (Hz)", "y": "Power"})
         fig.update_layout(height=450)
         st.plotly_chart(fig, use_container_width=True)
-
-    elif view_mode == "Per-electrode heatmap":
-        fig = go.Figure(data=go.Heatmap(
-            z=subject_power,
-            x=freqs,
-            y=channels,
-            colorscale="Viridis",
-        ))
-        fig.update_layout(
-            xaxis_title="Frequency (Hz)",
-            yaxis_title="Electrode",
-            height=500,
+        st.caption(
+            f"Power spectrum averaged across all 19 electrodes, 1-40 Hz, "
+            f"subject `{selected_subject}` ({selected_label})."
         )
-        st.plotly_chart(fig, use_container_width=True)
 
     else:
         selected_channels = st.multiselect(
@@ -280,6 +341,10 @@ with tab_spectralpower:
             legend=dict(orientation="h", yanchor="bottom", y=1.02),
         )
         st.plotly_chart(fig, use_container_width=True)
+        st.caption(
+            f"Power spectrum, 1-40 Hz, subject `{selected_subject}` ({selected_label}), "
+            f"for the selected electrodes: {', '.join(selected_channels) if selected_channels else 'none'}."
+        )
 
 st.divider()
 st.markdown("## Bibliography")
