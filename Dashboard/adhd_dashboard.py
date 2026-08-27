@@ -19,6 +19,11 @@ with st.sidebar:
     st.markdown("[Data processing](#data-processing)")
     st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;[ AEP projection](#aep-projection)", unsafe_allow_html=True)
     st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;[ Clough-Tocher interpolation](#clough-tocher-interpolation)", unsafe_allow_html=True)
+    st.markdown("[Network](#full-network)", unsafe_allow_html=True)
+    st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;[ Locally connected 2D](#locally-connected-2d)", unsafe_allow_html=True)
+    st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;[ Multi-head attention](#multi-head-attention)", unsafe_allow_html=True)
+    st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;[ Siamese comparison](#siamese-comparison)", unsafe_allow_html=True)
+    st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;[ Majority vote](#majority-vote)", unsafe_allow_html=True)
     st.markdown("[Bibliography](#bibliography)")
 st.markdown("""
 <style>
@@ -155,8 +160,7 @@ $N$ voltage samples over time:
 st.latex(r"x[0], x[1], \dots, x[N-1]")
 st.markdown(r"""
 **2. Discrete Fourier Transform (DFT).** Any such signal can be decomposed into a sum
-of pure sine/cosine waves at different frequencies. The DFT (computed efficiently via
-the FFT algorithm) extracts, for each candidate frequency $k$, a complex number that
+of pure sine/cosine waves at different frequencies. The DFT extracts, for each candidate frequency $k$, a complex number that
 tells us how strongly that frequency is present in the signal:
 """)
 st.latex(r"X[k] = \sum_{n=0}^{N-1} x[n] \cdot e^{-i 2\pi k n / N}")
@@ -188,15 +192,109 @@ col1, col2, col3 = st.columns([1, 2, 1])
 with col2:
      st.image(BASE_DIR / "extra_images" / "AEP.png")
 
+with st.expander("The math behind AEP"):
+    st.markdown(r"""
+    We can look at the last step of AEP as very similar to the transformation of polar coordinates.
+    First thing first we normalize each electrode onto a unit sphere:""")
+    st.latex(r"\hat x=\frac{x}{r}; \hspace{.3cm} \hat y=\frac{y}{r}; \hspace{.3cm} \hat z = \frac{z}{r}; \hspace{.3cm} r=\sqrt{x^2+y^2+z^2}")
+
+    st.markdown(r"""
+    **1. Angles instead of coordinates.** We can identify each position with two angles, much
+   like latitude and longitude on the Earth. The first angle $\phi$ is the angular distance from the vertex. The second angle $\lambda$ is the direction around the vertex.
+    """)
+    st.latex(r"\phi = \arcsin(\hat{z}) \qquad \lambda = \text{atan2}(\hat{y}, \hat{x})")
+    col_space1, col1, col_space2, col2, col_space3 = st.columns([1, 2, 1, 2, 1])
+    with col1:
+        st.image(BASE_DIR / "extra_images" / "phi.jpg", width=300)
+    with col2:
+        st.image(BASE_DIR / "extra_images" / "lambda.jpg", width=300)
+    st.markdown(r"""
+
+    **2. The trick.** Use $\phi$ directly as the radius in the 2D map, and
+    keep $\lambda$ as the angle:
+    """)
+    st.latex(r"\rho = \phi")
+    st.image(BASE_DIR / "extra_images" / "rho.png")
+    st.markdown(r"""
+    This is what makes the projection *equidistant*: an electrode
+    twice as far from the vertex lands twice as far from the
+    center of the map.
+
+    **3. Converting to (x, y)** The last step is
+    the same formula you'd use for any point in a 2D
+    plane to turn coordinates in polar form into Cartesian coordinates:
+    """)
+    st.latex(r"x = \rho \cos(\lambda) = \phi \cos(\lambda) \hspace{.4cm} \qquad y = \rho \sin(\lambda) = \phi \sin(\lambda)")
+    st.markdown(r"""
+    AEP has *one limitation*: distances from the vertex
+    are exact by construction, but distances between two electrodes are approximate, since a flat plane can't perfectly
+    preserve curved, on-sphere distances between points that are both far
+    from the pole.
+    """)
+
+st.divider()
+
 st.markdown("### Clough-Tocher interpolation")
+st.markdown("""
+At this point we know the power value at 19 scattered points but
+ everything else on the 16×16 grid is empty. Clough-Tocher
+interpolation fills those gaps with a smooth surface.
+
+It works as follows:
+- Connect the 19 projected points into a way such that each triangle has
+  three known electrodes at its corners.
+- Split each triangle into **3 smaller sub-triangles**, meeting at the
+  triangle's centroid.""")
+st.image(BASE_DIR / "extra_images" / "ct.png", width=700)
+st.markdown(r"""
+- Fit a smooth curved patch over each sub-triangle so that it matches the known
+  power values exactly at the electrode corners.
+- Stitch all the patches together so the final surface is smooth.
+
+The result is a full 16×16 image where every pixel has a plausible power value,
+not just the 19 pixels that happen to sit under an electrode.
+""")
+
+
+with st.expander("Math behind Clough-Tocher"):
+    st.markdown(r"""
+    **1. Barycentric coordinates.** Inside a triangle with corners
+    $V_1, V_2, V_3$, any point can be written as a weighted mix of the three
+    corners:
+    """)
+    st.latex(r"P = b_1 V_1 + b_2 V_2 + b_3 V_3, \qquad b_1+b_2+b_3=1")
+    st.markdown(r"""
+    $(b_1, b_2, b_3)$ say how "close" $P$ is to each corner.
+
+    **2. Splitting into 3 micro-triangles.** The triangle's centroid
+    $C = (V_1+V_2+V_3)/3$ becomes a fourth vertex, splitting the triangle into
+    three smaller ones: $(V_1,V_2,C)$, $(V_2,V_3,C)$, $(V_3,V_1,C)$.
+
+    **3. A cubic polynomial per micro-triangle.** On each of the three
+    micro-triangles, the interpolated value is a cubic polynomial
+    in the barycentric coordinates:
+    """)
+    st.latex(r"f(P)=f(b_1,b_2,b_3) = \sum_{i+j+k=3} c_{ijk}\, b_1^i b_2^j b_3^k")
+    st.markdown(r"""
+    The coefficients $c_{ijk}$ are fixed and automatically computed when solving a linear system of equations.
+
+    **4. Enforcing continuity.** Three independently-fit
+    cubic patches could still meet at slightly different angles along their
+    shared edges. Clough-Tocher adds extra linear
+    constraints between neighboring coefficients so that **both the value and
+    the slope** match exactly across every internal edge and across every edge shared with a neighboring electrode
+    triangle. The result is a surface that is smooth, not just
+    continuous.
+
+    **5. Making the image.** Given the 16x16 grid of pixel, for each pixel we first find which triangle it sits in, then which of the three micro-triangles, and finally evaluate the cubic polynomial at that point to get the interpolated power value.
+    """)
 
 st.markdown("### Explore a subject")
 
 label_lookup = {sid: ("ADHD" if lab == 1 else "Control") for sid, lab in zip(subject_ids, labels)}
 
-_adhd_ids_all = [sid for sid in subject_ids if label_lookup[sid] == "ADHD"]
 _control_ids_all = [sid for sid in subject_ids if label_lookup[sid] == "Control"]
-demo_subject_ids = _adhd_ids_all[:3] + _control_ids_all[:3]
+demo_subject_ids = _control_ids_all[:6]
 
 col_sel, col_badge = st.columns([3, 1])
 with col_sel:
@@ -207,7 +305,7 @@ with col_sel:
     )
 selected_label = label_lookup[selected_subject]
 with col_badge:
-    badge_color = "#d1495b" if selected_label == "ADHD" else "#2a9d8f"
+    badge_color = "#2a9d8f"
     st.markdown(
         f"<div style='margin-top:28px; padding:8px 16px; border-radius:8px; "
         f"background-color:{badge_color}; color:white; text-align:center; "
@@ -217,134 +315,168 @@ with col_badge:
 
 selected_idx = int(np.where(subject_ids == selected_subject)[0][0])
 
-tab_maps, tab_spectralpower = st.tabs(["Brain Maps", "Spectral Power"])
+st.markdown(f"**Sub-band brain maps for subject `{selected_subject}` ({selected_label})**")
+st.caption(
+    "Each map is the average power over the electrode topography for that "
+    "frequency band. Brighter = higher power (same convention as Fig. 6 of the paper)."
+)
 
-with tab_maps:
-    st.markdown(f"**Sub-band brain maps for subject `{selected_subject}` ({selected_label})**")
-    st.caption(
-        "Each map is the average power over the electrode topography for that "
-        "frequency band. Brighter = higher power (same convention as Fig. 6 of the paper)."
+band_cols = st.columns(len(BANDS))
+for col, (band_name, (low, high)) in zip(band_cols, BANDS.items()):
+    band_map = brain_maps[selected_idx, :, :, low:high].mean(axis=-1)
+    fig = go.Figure(data=go.Heatmap(
+        z=band_map,
+        colorscale="gray",
+        showscale=False,
+    ))
+    fig.update_layout(
+        title=f"{band_name} ({low}-{high} Hz)",
+        width=220, height=220,
+        margin=dict(l=10, r=10, t=40, b=10),
+        xaxis=dict(showticklabels=False),
+        yaxis=dict(showticklabels=False, autorange="reversed"),
     )
+    col.plotly_chart(fig, use_container_width=True)
 
-    band_cols = st.columns(len(BANDS))
-    for col, (band_name, (low, high)) in zip(band_cols, BANDS.items()):
-        band_map = brain_maps[selected_idx, :, :, low:high].mean(axis=-1)
-        fig = go.Figure(data=go.Heatmap(
-            z=band_map,
-            colorscale="Viridis",
-            showscale=False,
-        ))
-        fig.update_layout(
-            title=f"{band_name} ({low}-{high} Hz)",
-            width=220, height=220,
-            margin=dict(l=10, r=10, t=40, b=10),
-            xaxis=dict(showticklabels=False),
-            yaxis=dict(showticklabels=False, autorange="reversed"),
-        )
-        col.plotly_chart(fig, use_container_width=True)
+st.divider()
 
-    st.divider()
-    st.markdown("**Effect size (Cohen's d) per band — the fair comparison across bands**")
-    st.caption(
-        "Cohen's d standardizes the ADHD-Control difference by how much subjects "
-        "naturally vary within each group at that pixel: d = (mean_ADHD - "
-        "mean_Control) / pooled_std. Unlike the raw difference above, this uses "
-        "the **same fixed color scale for every band**, so bands really are "
-        "comparable here. Rule of thumb: |d| around 0.2 = small, 0.5 = medium, "
-        "0.8+ = large effect. If Theta shows the largest, most spatially "
-        "structured |d| here, that matches the paper's finding."
-    )
 
-    adhd_mask = labels == 1
-    control_mask = labels == 0
-    band_items_group = list(BANDS.items())
-    D_SCALE = 0.8  # scala fissa e condivisa tra tutte le bande
+st.markdown("### Network")
+st.markdown("""
+Putting AEP, Clough-Tocher, and the Siamese architecture together, here's the
+complete path from the 5 band maps of a single subject to the final ADHD/Control
+prediction.
+""")
+col1, col2, col3 = st.columns([1, 3, 1])
+with col2:
+    st.image(BASE_DIR / "extra_images" / "siamese_network_schema_en.png")
 
-    effect_fig = make_subplots(
-        rows=1, cols=len(band_items_group),
-        subplot_titles=[f"{name} ({low}-{high} Hz)" for name, (low, high) in band_items_group],
-        horizontal_spacing=0.02,
-    )
+st.markdown("### Locally connected 2D")
+st.markdown(""" We can look at a locally connected layer as something in between a convolutional layer and a fully connected layer.
+In particular, it's similar to a CNN in the sense that it looks at local patches of the input, but it differs in that it does not share weights across different spatial locations. 
+This can be particularly useful because the spatial structure of the input data is important and varies across different regions, meaning our inputs are not invariant for translation.
+""")
+st.markdown("""In this layer we have:<br>
+- **Input**: 40 frequency images divided into 5 bands -> 5 tensors of shape 16x16×4, 16×16×4, 16×16×4, 16×16×23, 16×16×5 <br>
+- 5 locally connected layers with kernel size = 5<br>
+- **Output**: 5 tensors of shape 12x12×1, 12×12×1, 12×12×1, 12×12×1, 12×12×1 
+""", unsafe_allow_html=True) 
 
-    for col_i, (band_name, (low, high)) in enumerate(band_items_group, start=1):
-        adhd_band_maps = brain_maps[adhd_mask][:, :, :, low:high].mean(axis=-1)
-        control_band_maps = brain_maps[control_mask][:, :, :, low:high].mean(axis=-1)
+st.markdown("### *Global average pooling*")
+st.markdown("""The global average pooling layer is used to reduce the spatial dimensions of the feature maps produced by the locally connected layers.
+It computes the average of each feature map, resulting in a single value for each feature map, losing all the spatial information. it's not really a layer since it computes a simple average.
+""")
 
-        mean_adhd = adhd_band_maps.mean(axis=0)
-        mean_control = control_band_maps.mean(axis=0)
-        std_adhd = adhd_band_maps.std(axis=0, ddof=1)
-        std_control = control_band_maps.std(axis=0, ddof=1)
+st.markdown("### *Dense layer*")
+st.markdown("""
+A Dense layer is the classic fully-connected layer. Given
+an input vector $x$ of size $D$ and $M$ output neurons, each output is:
+""")
+st.latex(r"h_j = a\left(\beta_j + \sum_{i=1}^{D} \omega_{ji}\, x_i\right), \qquad j=1,\dots,M")
+st.markdown("""
+The weights $\\omega_{ji}$ start out random and are adjusted during training,
+via backpropagation and gradient descent.
+""")
 
-        n1, n2 = adhd_band_maps.shape[0], control_band_maps.shape[0]
-        pooled_std = np.sqrt(
-            ((n1 - 1) * std_adhd**2 + (n2 - 1) * std_control**2) / (n1 + n2 - 2)
-        )
-        cohens_d = (mean_adhd - mean_control) / (pooled_std + 1e-8)
+with st.expander("Every Dense layer in the network"):
+    st.markdown("""
+    | Where | Input → Output | Activation | Role |
+    |---|---|---|---|
+    | Band tokenization | 1 → 16 | tanh | Expands the pooled scalar into a 16-value token |
+    | Attention feed-forward (1st) | 16 → 16 | ReLU | Processes each token after attention |
+    | Attention feed-forward (2nd) | 16 → 16 | linear | Re-projects before the residual sum |
+    | Importance score | 16 → 1 | sigmoid | Produces the per-band importance weight |
+    | Final embedding | ~256 → 16 | tanh | Produces the subject's 16-dim embedding |
+    """)
 
-        effect_fig.add_trace(
-            go.Heatmap(
-                z=cohens_d, colorscale="RdBu_r",
-                zmin=-D_SCALE, zmax=D_SCALE,
-                showscale=(col_i == len(band_items_group)),
-            ),
-            row=1, col=col_i,
-        )
+st.markdown("### Multi-head attention")
+st.markdown("""
+So far each band has been processed in complete isolation and here comes the innovation of the project.
+Attention lets each band look at the other four and
+decide how much to "borrow" from each, before moving on.
 
-    effect_fig.update_xaxes(showticklabels=False)
-    effect_fig.update_yaxes(showticklabels=False, autorange="reversed")
-    effect_fig.update_layout(height=280, margin=dict(l=20, r=20, t=50, b=10))
+Each band produces three transformed versions of its 16-value token: <br>
 
-    st.plotly_chart(effect_fig, use_container_width=True)
-    st.caption(
-        "Red = ADHD systematically higher than Control at that pixel (relative "
-        "to within-group variability), blue = the opposite. Same scale "
-        f"(-{D_SCALE} to +{D_SCALE}) across all 5 bands, so color intensity is "
-        "directly comparable band to band. Rule of thumb: |d| around 0.2 = small, "
-        "0.5 = medium, 0.8+ = large effect."
-    )
+- **Query** -> what it's looking for <br>
+- **Key** -> how it makes itself findable <br>
+- **Value** -> the information it actually carries<br>
+Comparing every band's Query against every other band's Key gives a 5×5 relevance score, normalized
+with softmax so each band's weights sum to 1.
 
-with tab_spectralpower:
-    st.markdown(f"**Power spectral density (1-40 Hz) for subject `{selected_subject}` ({selected_label})**")
+With `num_heads=2`, this whole process runs twice in parallel. The two
+results are combined into a single output the same size as the original
+token, which is then added back to it so no band's
+original information is lost. We use the importance scores to weight the previous 5 maps.
+""", unsafe_allow_html=True)
 
-    channels = ['Fp1','Fp2','F3','F4','C3','C4','P3','P4','O1','O2',
-                'F7','F8','T7','T8','P7','P8','Fz','Cz','Pz']
-    freqs = np.arange(1, 41)
+with st.expander("Math behind multi-head attention"):
+    st.markdown(r"""
+    **1. Query, Key, Value.** For each band $i$, three learned projections of
+    its token:
+    """)
+    st.latex(r"q_i = W_Q \cdot \text{token}_i \qquad k_i = W_K \cdot \text{token}_i \qquad v_i = W_V \cdot \text{token}_i")
+    st.markdown(r"""
+    **2. Relevance scores.** How much band $i$'s query matches band $j$'s key,
+    for every pair of bands — a 5×5 matrix:
+    """)
+    st.latex(r"\text{score}_{ij} = q_i \cdot k_j")
+    st.markdown(r"""
+    **3. Softmax normalization.** Scaled by $\sqrt{d_k}$ and normalized so each
+    band's weights over the other bands sum to 1:
+    """)
+    st.latex(r"\alpha_{ij} = \text{softmax}_j\left(\frac{\text{score}_{ij}}{\sqrt{d_k}}\right)")
+    st.markdown(r"""
+    **4. Weighted combination.** Band $i$'s new representation is a weighted
+    average of every band's Value:
+    """)
+    st.latex(r"\text{attn\_output}_i = \sum_{j=1}^{5} \alpha_{ij}\, v_j")
+    st.markdown(r"""
+    This layer also returns the raw attention scores, the
+    5×5 relevance matrix per head.
+    """)
 
-    view_mode = st.radio(
-        "Spectral Power is a measure of how much energy is in each signal frequency. Choose how to visualize it:",
-        options=["Average across electrodes", "Per-electrode lines"],
-        horizontal=True,
-    )
+st.markdown("### *Concatenation + Conv2D×2*")
+st.markdown("""
+The 5 weighted band mapsare stacked into a single 12×12×5 tensor. Two standard Convolution layers then process this
+combined map. Two Convolution layers in a row let the second layer indirectly "see" a wider
+    area of the map than the first, building up spatial context gradually.
+ """)
 
-    subject_power = power_tensor[selected_idx]  # shape (19, 40)
 
-    if view_mode == "Average across electrodes":
-        avg_power = subject_power.mean(axis=0)
-        fig = px.line(x=freqs, y=avg_power, labels={"x": "Frequency (Hz)", "y": "Power"})
-        fig.update_layout(height=450)
-        st.plotly_chart(fig, use_container_width=True)
-        st.caption(
-            f"Power spectrum averaged across all 19 electrodes, 1-40 Hz, "
-            f"subject `{selected_subject}` ({selected_label})."
-        )
+st.markdown("### Siamese comparison")
+st.markdown("""
+Everything above — locally-connected layers, attention, concatenation,
+Conv2D×2, Dense — is one single network (the base network). To compare two
+subjects, that exact same network, with the exact same weights, is run twice:
+once on subject A, once on subject B. Using shared weights is what makes the
+comparison fair — both subjects are judged by the same "measuring stick".
+""")
 
-    else:
-        selected_channels = st.multiselect(
-            "Electrodes to show", options=channels, default=["Fz", "Cz", "Pz", "O1", "O2"]
-        )
-        fig = go.Figure()
-        for ch in selected_channels:
-            ch_idx = channels.index(ch)
-            fig.add_trace(go.Scatter(x=freqs, y=subject_power[ch_idx], mode="lines", name=ch))
-        fig.update_layout(
-            xaxis_title="Frequency (Hz)", yaxis_title="Power", height=450,
-            legend=dict(orientation="h", yanchor="bottom", y=1.02),
-        )
-        st.plotly_chart(fig, use_container_width=True)
-        st.caption(
-            f"Power spectrum, 1-40 Hz, subject `{selected_subject}` ({selected_label}), "
-            f"for the selected electrodes: {', '.join(selected_channels) if selected_channels else 'none'}."
-        )
+st.markdown("### Euclidean distance")
+st.markdown("""
+The two 16-dimensional embeddings are compared with a simple euclidean
+distance. During training, this distance is pushed toward 0 for pairs of the
+same class, and pushed apart for pairs of different classes.
+""")
+
+st.markdown("### Majority vote")
+st.markdown("""
+At evaluation time, a new subject is compared only against the ADHD subjects
+from the training set.
+Each pairwise distance becomes a binary vote and the final prediction is simply whichever vote wins the majority.
+""")
+
+st.markdown("### Prediction")
+st.markdown("""
+The end result: **ADHD** or **Control** for the held-out subject.
+""")
+
+
+
+
+
+
+
 
 st.divider()
 st.markdown("## Bibliography")
