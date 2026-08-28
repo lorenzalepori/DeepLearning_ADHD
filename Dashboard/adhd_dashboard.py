@@ -463,6 +463,11 @@ st.markdown("""
 In the end we get an AUC of 0.806 on a partial LOOCV.
 """)
 st.image(BASE_DIR / "extra_images" / "roc.png", width=400)
+st.markdown("""
+The most interesting result is given by the attention score, that shows that the most meaningful badns are both Theta and Beta,
+in particular their ratio, which is coherent with the literature on ADHD diagnosis.
+""")
+st.image(BASE_DIR / "extra_images" / "importance.png", width=500)
 
 
 st.markdown("### Limitations")
@@ -481,7 +486,7 @@ majority-vote accuracy reported in the original paper. A few likely contributors
 
 st.divider()
 st.markdown("### Link to code")
-st.image(BASE_DIR / "extra_images" / "github_repo_qrcode.png", width=30)
+st.image(BASE_DIR / "extra_images" / "github_repo_qrcode.png", width=100)
 
 
 
