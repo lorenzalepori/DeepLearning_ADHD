@@ -24,6 +24,7 @@ with st.sidebar:
     st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;[ Multi-head attention](#multi-head-attention)", unsafe_allow_html=True)
     st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;[ Siamese comparison](#siamese-comparison)", unsafe_allow_html=True)
     st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;[ Majority vote](#majority-vote)", unsafe_allow_html=True)
+    st.markdown("[Limitations](#limitations)")
     st.markdown("[Bibliography](#bibliography)")
 st.markdown("""
 <style>
@@ -443,15 +444,6 @@ combined map. Two Convolution layers in a row let the second layer indirectly "s
  """)
 
 
-st.markdown("### Siamese comparison")
-st.markdown("""
-Everything above — locally-connected layers, attention, concatenation,
-Conv2D×2, Dense — is one single network (the base network). To compare two
-subjects, that exact same network, with the exact same weights, is run twice:
-once on subject A, once on subject B. Using shared weights is what makes the
-comparison fair — both subjects are judged by the same "measuring stick".
-""")
-
 st.markdown("### Euclidean distance")
 st.markdown("""
 The two 16-dimensional embeddings are compared with a simple euclidean
@@ -466,13 +458,26 @@ from the training set.
 Each pairwise distance becomes a binary vote and the final prediction is simply whichever vote wins the majority.
 """)
 
-st.markdown("### Prediction")
+st.markdown("### Results")
 st.markdown("""
-The end result: **ADHD** or **Control** for the held-out subject.
+In the end we get an AUC of 0.806 on a partial LOOCV.
 """)
+st.image(BASE_DIR / "extra_images" / "roc.png", width=400)
 
 
-
+st.markdown("### Limitations")
+st.markdown("""
+**Computational constraints.** The full LOOCV (121 trainings) exceeded the time
+available on our hardware. We report results from a stratified K-Fold CV and a
+partial LOOCV (a balanced subset of subjects) as faster, approximate alternatives —
+these should be read as preliminary estimates, not as a substitute for the full protocol.
+**Performance gap vs. the paper.** Our evaluations reach an AUC well below the 99.17%
+majority-vote accuracy reported in the original paper. A few likely contributors:
+- The paper's exact hyperparameters, training length, and data splits are not fully
+  specified, making an exact reproduction difficult.
+- Our attention mechanism and the changes to pair sampling (discussed below) change the
+  training dynamics compared to the original one-class setup.
+""")
 
 
 

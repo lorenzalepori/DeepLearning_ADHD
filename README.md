@@ -1,22 +1,33 @@
-# Siamase Network for ADHD diagnostic in children
+# ADHD Detection from EEG using a Siamese Network with Attention
 
-Repeat of the experiment:
-Latifi, B., Amini, A., Motie Nasrabadi, A. (2024). *Siamese based deep neural 
-network for ADHD detection using EEG signal*. Computers in Biology and Medicine, 
-182, 109092. https://doi.org/10.1016/j.compbiomed.2024.109092
-with novel addition of a transformer.
-An interactive Dashboard for the whole project is available at https://deeplearning-adhd.streamlit.app/.
+Deep learning project that detects ADHD from EEG recordings, extending the Siamese
+architecture proposed by Latifi et al. (2024) with a multi-head attention mechanism
+over frequency bands.
 
-## Dataset
-The dataset used for this experiment is publicly available on 
-[IEEE DataPort](https://ieee-dataport.org/open-access/eeg-data-adhd-control-children) 
-(a mirror copy is also available on 
-[Kaggle](https://www.kaggle.com/datasets/danizo/eeg-dataset-for-adhd)), 
-collected by researchers at Shahed University.
-The dataset contains the EEG recording from 121 children aged 7-12 years old: 61 diagnosed with ADHD and 60 healthy control. During data collection each child was shown images of cartoon characters and asked to count them, since one of the main deficits in children with ADHD is visual attention.
+## Pipeline
 
+```
+Raw EEG (19 channels)
+  → Power Spectral Density (1-40 Hz)
+  → AEP projection (electrodes 3D → 2D)
+  → Clough-Tocher interpolation → 16×16×40 brain map
+  → split into 5 frequency bands
+  → Siamese network (LocallyConnected2D → attention → Conv2D×2 → Dense)
+  → embedding → euclidean distance → majority vote vs ADHD references
+  → prediction: ADHD or Control
+```
 
-## Structure
+## What's different from the paper
 
+Multi-head attention over the 5 bands produces a per-band importance score used to
+weight the maps before merging — replacing the paper's post-hoc Grad-CAM step.
 
-## Bibliography
+## References
+
+- Latifi, Amini & Motie Nasrabadi (2024). *Siamese based deep neural network for ADHD detection using EEG signal.*
+- Bashivan et al. (2016). *Learning Representations from EEG with Deep Recurrent-Convolutional Neural Networks.*
+- Alfeld (1984). *A Trivariate Clough-Tocher Scheme for Tetrahedral Data.*
+
+## Authors
+
+Elia Crimi, Lorenza Lepori — Deep Learning, A.Y. 2025-2026.
