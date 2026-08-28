@@ -479,7 +479,9 @@ majority-vote accuracy reported in the original paper. A few likely contributors
   training dynamics compared to the original one-class setup.
 """)
 
-
+st.divider()
+st.markdown("### Link to code")
+st.image(BASE_DIR / "extra_images" / "github_repo_qrcode.png", width=30)
 
 
 
